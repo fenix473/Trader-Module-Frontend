@@ -25,6 +25,7 @@ const API = 'https://trader-module-production.up.railway.app';
 export default function Home() {
   const [data, setData] = useState([]);
   const [symbols, setSymbols] = useState([]);
+  const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -52,11 +53,22 @@ export default function Home() {
       .catch(() => setMarketOpen(null));
   };
 
+  const fetchNews = () => {
+    fetch(`${API}/news/latest`)
+      .then(res => res.json())
+      .then(rows => setNews(rows));
+  };
+
   useEffect(() => {
     fetchPrices();
     fetchMarketStatus();
+    fetchNews();
     const interval = setInterval(fetchMarketStatus, 60_000);
-    return () => clearInterval(interval);
+    const newsInterval = setInterval(fetchNews, 5 * 60_000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(newsInterval);
+    };
   }, []);
 
   const handleAddSymbol = async () => {
@@ -86,12 +98,12 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ p: 3, height: '100vh', boxSizing: 'border-box' }}>
-      <Grid container spacing={2} sx={{ height: '100%' }}>
+    <Box sx={{ p: 3, boxSizing: 'border-box' }}>
+      <Grid container spacing={2}>
 
         {/* Market Data — 2/3 */}
         <Grid size={8}>
-          <Paper sx={{ p: 2, height: '100%' }}>
+          <Paper sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
               <Typography variant="h6">Market Data</Typography>
               {marketOpen !== null && (
@@ -132,7 +144,7 @@ export default function Home() {
 
         {/* Tracked Companies — 1/3 */}
         <Grid size={4}>
-          <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Typography variant="h6">Tracked Companies</Typography>
 
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -165,6 +177,32 @@ export default function Home() {
                   {symbols.map(row => (
                     <TableRow key={row.symbol} hover>
                       <TableCell>{row.symbol}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+        {/* News Articles — full width */}
+        <Grid size={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>News</Typography>
+            <TableContainer>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 120 }}>Symbol</TableCell>
+                    <TableCell sx={{ width: 180 }}>Published</TableCell>
+                    <TableCell>Summary</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {news.map((row, i) => (
+                    <TableRow key={i} hover>
+                      <TableCell>{(row.tags || []).join(', ') || '—'}</TableCell>
+                      <TableCell>{row.published_at ? new Date(row.published_at).toLocaleString() : '—'}</TableCell>
+                      <TableCell>{row.summary || '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
