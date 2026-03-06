@@ -56,7 +56,8 @@ export default function Home() {
   const fetchNews = () => {
     fetch(`${API}/news/latest`)
       .then(res => res.json())
-      .then(rows => setNews(rows));
+      .then(rows => Array.isArray(rows) && setNews(rows))
+      .catch(() => {});
   };
 
   useEffect(() => {
