@@ -20,7 +20,7 @@ import {
   Chip,
 } from '@mui/material';
 
-const API = 'http://localhost:8000';
+const API = 'https://trader-module-production.up.railway.app';
 
 export default function Home() {
   const [data, setData] = useState([]);
