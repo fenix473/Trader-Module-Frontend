@@ -9,6 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.9",
+    "@supabase/supabase-js": "^2.98.0",
+    "antd": "^6.3.1",
+    "finnhub": "^2.0.13",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
