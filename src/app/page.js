@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import {
@@ -40,6 +40,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceDot,
 } from 'recharts';
 
 const theme = createTheme({
@@ -186,11 +187,13 @@ function SymbolRow({ symbol, latest }) {
   );
 }
 
-function MarketChart({ symbols }) {
+function MarketChart({ symbols, news }) {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
-  const [dayOffset, setDayOffset] = useState(0); // 0 = today, 1 = yesterday, …
+  const [dayOffset, setDayOffset] = useState(0);
+  const [hoveredNews, setHoveredNews] = useState(null);
+  const chartContainerRef = useRef(null);
 
   const dayLabel = (offset) => {
     if (offset === 0) return 'Today';
@@ -203,7 +206,7 @@ function MarketChart({ symbols }) {
   const getETDateParam = (offset) => {
     const d = new Date();
     d.setDate(d.getDate() - offset);
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   };
 
   useEffect(() => {
@@ -225,14 +228,34 @@ function MarketChart({ symbols }) {
             return mins >= 570 && mins <= 960;
           })
           .reverse()
-          .map(r => ({
-            mins: r.et.getHours() * 60 + r.et.getMinutes(),
-            price: r.price,
-          }));
+          .map(r => ({ mins: r.et.getHours() * 60 + r.et.getMinutes(), price: r.price }));
         setChartData(mapped);
       })
       .finally(() => setChartLoading(false));
   }, [selectedSymbol, dayOffset]);
+
+  const newsPoints = useMemo(() => {
+    if (!selectedSymbol || !chartData.length) return [];
+    const targetDate = getETDateParam(dayOffset);
+    return news
+      .filter(n => {
+        if (!n._published_at || !n._tags.includes(selectedSymbol)) return false;
+        const et = new Date(new Date(n._published_at).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        if (et.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) !== targetDate) return false;
+        const mins = et.getHours() * 60 + et.getMinutes();
+        return mins >= 570 && mins <= 960;
+      })
+      .map(n => {
+        const et = new Date(new Date(n._published_at).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const mins = et.getHours() * 60 + et.getMinutes();
+        const nearest = chartData.reduce((a, b) =>
+          Math.abs(a.mins - mins) <= Math.abs(b.mins - mins) ? a : b
+        );
+        const h = et.getHours(); const m = String(et.getMinutes()).padStart(2, '0');
+        const h12 = h > 12 ? h - 12 : h; const suffix = h >= 12 ? 'PM' : 'AM';
+        return { mins, price: nearest.price, summary: n.summary, title: n._title, timeLabel: `${h12}:${m} ${suffix} ET` };
+      });
+  }, [news, selectedSymbol, chartData, dayOffset]);
 
   return (
     <Paper sx={{ p: 2 }}>
@@ -240,14 +263,8 @@ function MarketChart({ symbols }) {
         <Typography variant="h6">Price Chart</Typography>
         <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel>Symbol</InputLabel>
-          <Select
-            value={selectedSymbol}
-            label="Symbol"
-            onChange={e => setSelectedSymbol(e.target.value)}
-          >
-            {symbols.map(s => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
-            ))}
+          <Select value={selectedSymbol} label="Symbol" onChange={e => setSelectedSymbol(e.target.value)}>
+            {symbols.map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
           </Select>
         </FormControl>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
@@ -264,49 +281,74 @@ function MarketChart({ symbols }) {
         {chartLoading && <CircularProgress size={20} />}
       </Box>
       {chartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-            <defs>
-              <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
-                <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-            <XAxis
-              dataKey="mins"
-              type="number"
-              domain={[570, 960]}
-              ticks={[570, 600, 660, 720, 780, 840, 900, 960]}
-              tickFormatter={m => {
-                const h = Math.floor(m / 60);
-                const min = String(m % 60).padStart(2, '0');
-                return h > 12 ? `${h - 12}:${min}` : `${h}:${min}`;
-              }}
-              tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }}
-            />
-            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }} />
-            <Tooltip
-              formatter={val => [`$${val.toFixed(2)}`, 'Price']}
-              labelFormatter={m => {
-                const h = Math.floor(m / 60);
-                const min = String(m % 60).padStart(2, '0');
-                const suffix = h >= 12 ? 'PM' : 'AM';
-                const h12 = h > 12 ? h - 12 : h;
-                return `${h12}:${min} ${suffix} ET`;
-              }}
-              contentStyle={{ fontSize: 12, background: 'rgba(10,14,28,0.95)', border: '1px solid rgba(255,255,255,0.15)' }}
-            />
-            <Area
-              type="monotone"
-              dataKey="price"
-              stroke="#60a5fa"
-              strokeWidth={2}
-              fill="url(#priceGradient)"
-              dot={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <Box sx={{ position: 'relative' }} ref={chartContainerRef}>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <defs>
+                <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+              <XAxis
+                dataKey="mins" type="number" domain={[570, 960]}
+                ticks={[570, 600, 660, 720, 780, 840, 900, 960]}
+                tickFormatter={m => { const h = Math.floor(m / 60); const min = String(m % 60).padStart(2, '0'); return h > 12 ? `${h - 12}:${min}` : `${h}:${min}`; }}
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }}
+              />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }} />
+              <Tooltip
+                formatter={val => [`$${val.toFixed(2)}`, 'Price']}
+                labelFormatter={m => { const h = Math.floor(m / 60); const min = String(m % 60).padStart(2, '0'); const suffix = h >= 12 ? 'PM' : 'AM'; const h12 = h > 12 ? h - 12 : h; return `${h12}:${min} ${suffix} ET`; }}
+                contentStyle={{ fontSize: 12, background: 'rgba(10,14,28,0.95)', border: '1px solid rgba(255,255,255,0.15)' }}
+              />
+              <Area type="monotone" dataKey="price" stroke="#60a5fa" strokeWidth={2} fill="url(#priceGradient)" dot={false} />
+              {newsPoints.map((n, i) => (
+                <ReferenceDot key={i} x={n.mins} y={n.price}
+                  shape={({ cx, cy }) => (
+                    <circle cx={cx} cy={cy} r={6}
+                      fill="#f59e0b" stroke="rgba(255,255,255,0.9)" strokeWidth={1.5}
+                      style={{ cursor: 'pointer', filter: 'drop-shadow(0 0 4px rgba(245,158,11,0.6))' }}
+                      onMouseEnter={() => setHoveredNews({ cx, cy, ...n })}
+                      onMouseLeave={() => setHoveredNews(null)}
+                    />
+                  )}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+          {hoveredNews && (
+            <Box sx={{
+              position: 'absolute',
+              left: hoveredNews.cx,
+              top: hoveredNews.cy,
+              transform: 'translate(-50%, calc(-100% - 12px))',
+              maxWidth: 280,
+              p: 1.5,
+              borderRadius: 1,
+              background: 'rgba(10,14,28,0.97)',
+              border: '1px solid rgba(245,158,11,0.4)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}>
+              <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 600, display: 'block', mb: 0.5 }}>
+                {hoveredNews.timeLabel}
+              </Typography>
+              {hoveredNews.title && (
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, display: 'block', mb: 0.5 }}>
+                  {hoveredNews.title}
+                </Typography>
+              )}
+              {hoveredNews.summary && hoveredNews.summary !== '—' && (
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', display: 'block', lineHeight: 1.4 }}>
+                  {hoveredNews.summary}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Box>
       ) : (
         <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Typography variant="body2" color="text.secondary">
@@ -373,6 +415,8 @@ export default function Home() {
         id: i,
         _tags: (row.tags || []).map(t => t.toUpperCase()),
         _enriched_status: row.enrichment_status || null,
+        _published_at: row.published_at || null,
+        _title: row.title || null,
         tags: (row.tags || []).join(', ') || '—',
         published_at: row.published_at ? new Date(row.published_at).toLocaleString() : '—',
         summary: row.summary || '—',
@@ -499,7 +543,7 @@ export default function Home() {
 
         {/* Price Chart — full width */}
         <Grid size={12}>
-          <MarketChart symbols={symbols.map(s => s.symbol)} />
+          <MarketChart symbols={symbols.map(s => s.symbol)} news={news} />
         </Grid>
 
         {/* News Articles — full width */}
