@@ -187,6 +187,20 @@ function SymbolRow({ symbol, latest }) {
   );
 }
 
+// Extract ET hours/minutes from a UTC timestamp correctly, regardless of user's local tz
+const etMins = (dateStr) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(new Date(dateStr));
+  const h = parseInt(parts.find(p => p.type === 'hour').value);
+  const m = parseInt(parts.find(p => p.type === 'minute').value);
+  return h * 60 + m;
+};
+
+const etDateStr = (dateStr) =>
+  new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+
 function MarketChart({ symbols, news }) {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartData, setChartData] = useState([]);
@@ -217,18 +231,9 @@ function MarketChart({ symbols, news }) {
       .then(res => res.json())
       .then(rows => {
         const mapped = rows
-          .map(r => {
-            const et = new Date(
-              new Date(r.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' })
-            );
-            return { et, price: parseFloat(r.price) };
-          })
-          .filter(r => {
-            const mins = r.et.getHours() * 60 + r.et.getMinutes();
-            return mins >= 570 && mins <= 960;
-          })
-          .reverse()
-          .map(r => ({ mins: r.et.getHours() * 60 + r.et.getMinutes(), price: r.price }));
+          .map(r => ({ mins: etMins(r.created_at), price: parseFloat(r.price) }))
+          .filter(r => r.mins >= 570 && r.mins <= 960)
+          .reverse();
         setChartData(mapped);
       })
       .finally(() => setChartLoading(false));
@@ -240,18 +245,16 @@ function MarketChart({ symbols, news }) {
     return news
       .filter(n => {
         if (!n._published_at || !n._tags.includes(selectedSymbol)) return false;
-        const et = new Date(new Date(n._published_at).toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        if (et.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) !== targetDate) return false;
-        const mins = et.getHours() * 60 + et.getMinutes();
+        if (etDateStr(n._published_at) !== targetDate) return false;
+        const mins = etMins(n._published_at);
         return mins >= 570 && mins <= 960;
       })
       .map(n => {
-        const et = new Date(new Date(n._published_at).toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const mins = et.getHours() * 60 + et.getMinutes();
+        const mins = etMins(n._published_at);
         const nearest = chartData.reduce((a, b) =>
           Math.abs(a.mins - mins) <= Math.abs(b.mins - mins) ? a : b
         );
-        const h = et.getHours(); const m = String(et.getMinutes()).padStart(2, '0');
+        const h = Math.floor(mins / 60); const m = String(mins % 60).padStart(2, '0');
         const h12 = h > 12 ? h - 12 : h; const suffix = h >= 12 ? 'PM' : 'AM';
         return { mins, price: nearest.price, summary: n.summary, title: n._title, timeLabel: `${h12}:${m} ${suffix} ET` };
       });
