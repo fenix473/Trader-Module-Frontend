@@ -27,24 +27,42 @@ import { DataGrid } from '@mui/x-data-grid';
 
 const API = 'https://trader-module-production.up.railway.app';
 
+const PAGE_SIZE = 10;
+
 function SymbolRow({ symbol, latest }) {
   const [open, setOpen] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [pages, setPages] = useState({});   // { pageIndex: rows[] }
+  const [page, setPage] = useState(0);
   const [histLoading, setHistLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  const fetchPage = (pageIndex) => {
+    if (pages[pageIndex] !== undefined) return;
+    setHistLoading(true);
+    fetch(`${API}/prices/${symbol}?limit=${PAGE_SIZE}&offset=${pageIndex * PAGE_SIZE}`)
+      .then(res => res.json())
+      .then(rows => {
+        const mapped = rows.map(r => ({ price: r.price, time: new Date(r.created_at).toLocaleString() }));
+        setPages(p => ({ ...p, [pageIndex]: mapped }));
+        if (mapped.length < PAGE_SIZE) setHasMore(false);
+      })
+      .finally(() => setHistLoading(false));
+  };
 
   const handleToggle = () => {
-    if (!open && history.length === 0) {
-      setHistLoading(true);
-      fetch(`${API}/prices/${symbol}`)
-        .then(res => res.json())
-        .then(rows => setHistory(rows.map(r => ({
-          price: r.price,
-          time: new Date(r.created_at).toLocaleString(),
-        }))))
-        .finally(() => setHistLoading(false));
-    }
+    if (!open && pages[0] === undefined) fetchPage(0);
     setOpen(o => !o);
   };
+
+  const handleNext = () => {
+    const next = page + 1;
+    fetchPage(next);
+    setPage(next);
+  };
+
+  const handlePrev = () => setPage(p => p - 1);
+
+  const pageRows = pages[page] || [];
 
   return (
     <>
@@ -66,22 +84,33 @@ function SymbolRow({ symbol, latest }) {
               {histLoading ? (
                 <CircularProgress size={20} sx={{ m: 1 }} />
               ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Price</TableCell>
-                      <TableCell>Time</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {history.map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell>{r.price}</TableCell>
-                        <TableCell>{r.time}</TableCell>
+                <>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Price</TableCell>
+                        <TableCell>Time</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {pageRows.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell>{r.price}</TableCell>
+                          <TableCell>{r.time}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <IconButton size="small" onClick={handlePrev} disabled={page === 0}>
+                      <KeyboardArrowUpIcon fontSize="small" />
+                    </IconButton>
+                    <Typography variant="caption">Page {page + 1}</Typography>
+                    <IconButton size="small" onClick={handleNext} disabled={!hasMore && pages[page + 1] === undefined}>
+                      <KeyboardArrowDownIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </>
               )}
             </Box>
           </Collapse>
