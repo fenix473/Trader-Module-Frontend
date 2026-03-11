@@ -4,9 +4,13 @@ import { useEffect, useState } from 'react';
 import {
   Box,
   Collapse,
+  FormControl,
   Grid,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -24,6 +28,15 @@ import {
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { DataGrid } from '@mui/x-data-grid';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 const API = 'https://trader-module-production.up.railway.app';
 
@@ -117,6 +130,80 @@ function SymbolRow({ symbol, latest }) {
         </TableCell>
       </TableRow>
     </>
+  );
+}
+
+function MarketChart({ symbols }) {
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  const [chartData, setChartData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    setChartLoading(true);
+    fetch(`${API}/prices/${selectedSymbol}?limit=100`)
+      .then(res => res.json())
+      .then(rows => {
+        const mapped = rows
+          .map(r => ({ time: new Date(r.created_at).toLocaleTimeString(), price: parseFloat(r.price) }))
+          .reverse();
+        setChartData(mapped);
+      })
+      .finally(() => setChartLoading(false));
+  }, [selectedSymbol]);
+
+  return (
+    <Paper sx={{ p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Typography variant="h6">Price Chart</Typography>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>Symbol</InputLabel>
+          <Select
+            value={selectedSymbol}
+            label="Symbol"
+            onChange={e => setSelectedSymbol(e.target.value)}
+          >
+            {symbols.map(s => (
+              <MenuItem key={s} value={s}>{s}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        {chartLoading && <CircularProgress size={20} />}
+      </Box>
+      {chartData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <defs>
+              <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#1976d2" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+            <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} />
+            <Tooltip
+              formatter={val => [`$${val.toFixed(2)}`, 'Price']}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="price"
+              stroke="#1976d2"
+              strokeWidth={2}
+              fill="url(#priceGradient)"
+              dot={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      ) : (
+        <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            {selectedSymbol ? 'No data' : 'Select a symbol to view chart'}
+          </Typography>
+        </Box>
+      )}
+    </Paper>
   );
 }
 
@@ -291,6 +378,11 @@ export default function Home() {
               autoHeight
             />
           </Paper>
+        </Grid>
+
+        {/* Price Chart — full width */}
+        <Grid size={12}>
+          <MarketChart symbols={symbols.map(s => s.symbol)} />
         </Grid>
 
         {/* News Articles — full width */}
