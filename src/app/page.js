@@ -312,6 +312,8 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [marketOpen, setMarketOpen] = useState(null);
+  const [newsFilter, setNewsFilter] = useState(new Set());
+  const [enrichedOnly, setEnrichedOnly] = useState(true);
 
   const fetchPrices = () => {
     fetch(`${API}/prices/latest`)
@@ -345,6 +347,8 @@ export default function Home() {
       .then(res => res.json())
       .then(rows => Array.isArray(rows) && setNews(rows.map((row, i) => ({
         id: i,
+        _tags: (row.tags || []).map(t => t.toUpperCase()),
+        _enriched_status: row.enriched_status || null,
         tags: (row.tags || []).join(', ') || '—',
         published_at: row.published_at ? new Date(row.published_at).toLocaleString() : '—',
         summary: row.summary || '—',
@@ -477,9 +481,61 @@ export default function Home() {
         {/* News Articles — full width */}
         <Grid size={12}>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>News</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+              <Typography variant="h6" sx={{ mr: 1 }}>News</Typography>
+              <Chip
+                label="Enriched"
+                size="small"
+                onClick={() => setEnrichedOnly(v => !v)}
+                sx={{
+                  bgcolor: enrichedOnly ? '#22c55e' : 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  fontWeight: enrichedOnly ? 700 : 400,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: enrichedOnly ? '#16a34a' : 'rgba(255,255,255,0.18)' },
+                }}
+              />
+              <Box sx={{ width: '1px', height: 20, bgcolor: 'rgba(255,255,255,0.15)', mx: 0.5 }} />
+              <Chip
+                label="All"
+                size="small"
+                onClick={() => setNewsFilter(new Set())}
+                sx={{
+                  bgcolor: newsFilter.size === 0 ? '#60a5fa' : 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  fontWeight: newsFilter.size === 0 ? 700 : 400,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: newsFilter.size === 0 ? '#3b82f6' : 'rgba(255,255,255,0.18)' },
+                }}
+              />
+              {symbols.map(s => {
+                const active = newsFilter.has(s.symbol);
+                return (
+                  <Chip
+                    key={s.symbol}
+                    label={s.symbol}
+                    size="small"
+                    onClick={() => setNewsFilter(prev => {
+                      const next = new Set(prev);
+                      if (active) next.delete(s.symbol); else next.add(s.symbol);
+                      return next;
+                    })}
+                    sx={{
+                      bgcolor: active ? '#60a5fa' : 'rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      fontWeight: active ? 700 : 400,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: active ? '#3b82f6' : 'rgba(255,255,255,0.18)' },
+                    }}
+                  />
+                );
+              })}
+            </Box>
             <DataGrid
-              rows={news}
+              rows={news.filter(r =>
+                (!enrichedOnly || r._enriched_status === 'enriched') &&
+                (newsFilter.size === 0 || r._tags.some(t => newsFilter.has(t)))
+              )}
               columns={newsColumns}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
               pageSizeOptions={[5, 10, 25]}
