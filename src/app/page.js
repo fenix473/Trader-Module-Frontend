@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import {
   Box,
+  Collapse,
   Grid,
+  IconButton,
   Paper,
   Table,
   TableBody,
@@ -19,11 +21,68 @@ import {
   CircularProgress,
   Chip,
 } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import { DataGrid } from '@mui/x-data-grid';
 
 const API = 'https://trader-module-production.up.railway.app';
 
+function SymbolRow({ symbol, records }) {
+  const [open, setOpen] = useState(false);
+  const latest = records[0];
+  return (
+    <>
+      <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
+        <TableCell sx={{ width: 48 }}>
+          <IconButton size="small" onClick={() => setOpen(o => !o)}>
+            {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+          </IconButton>
+        </TableCell>
+        <TableCell component="th" scope="row">{symbol}</TableCell>
+        <TableCell>{latest.price}</TableCell>
+        <TableCell>{latest.time}</TableCell>
+      </TableRow>
+      <TableRow>
+        <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
+          <Collapse in={open} timeout="auto" unmountOnExit>
+            <Box sx={{ margin: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>History</Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Price</TableCell>
+                    <TableCell>Time</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {records.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{r.price}</TableCell>
+                      <TableCell>{r.time}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </Collapse>
+        </TableCell>
+      </TableRow>
+    </>
+  );
+}
+
+const symbolColumns = [
+  { field: 'symbol', headerName: 'Symbol', flex: 1 },
+];
+
+const newsColumns = [
+  { field: 'tags', headerName: 'Symbol', width: 120 },
+  { field: 'published_at', headerName: 'Published', width: 180 },
+  { field: 'summary', headerName: 'Summary', flex: 1 },
+];
+
 export default function Home() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState({});
   const [symbols, setSymbols] = useState([]);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -35,14 +94,19 @@ export default function Home() {
     fetch(`${API}/prices/latest`)
       .then(res => res.json())
       .then(rows => {
-        const mapped = rows.map((row, i) => ({
-          key: String(i),
+        const mapped = rows.map(row => ({
           symbol: row.symbol,
           price: row.price,
           time: new Date(row.created_at).toLocaleString(),
         }));
-        setData(mapped);
-        setSymbols([...new Map(mapped.map(r => [r.symbol, r])).values()]);
+        // Group by symbol, preserving insertion order (latest first per symbol)
+        const grouped = {};
+        for (const r of mapped) {
+          if (!grouped[r.symbol]) grouped[r.symbol] = [];
+          grouped[r.symbol].push(r);
+        }
+        setData(grouped);
+        setSymbols(Object.keys(grouped).map((sym, i) => ({ id: i, symbol: sym })));
       });
   };
 
@@ -56,7 +120,12 @@ export default function Home() {
   const fetchNews = () => {
     fetch(`${API}/news/latest`)
       .then(res => res.json())
-      .then(rows => Array.isArray(rows) && setNews(rows))
+      .then(rows => Array.isArray(rows) && setNews(rows.map((row, i) => ({
+        id: i,
+        tags: (row.tags || []).join(', ') || '—',
+        published_at: row.published_at ? new Date(row.published_at).toLocaleString() : '—',
+        summary: row.summary || '—',
+      }))))
       .catch(() => {});
   };
 
@@ -121,21 +190,18 @@ export default function Home() {
               )}
             </Box>
             <TableContainer>
-              <Table size="small" stickyHeader>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell />
                     <TableCell>Symbol</TableCell>
-                    <TableCell>Price</TableCell>
+                    <TableCell>Latest Price</TableCell>
                     <TableCell>Time</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {data.map(row => (
-                    <TableRow key={row.key} hover>
-                      <TableCell>{row.symbol}</TableCell>
-                      <TableCell>{row.price}</TableCell>
-                      <TableCell>{row.time}</TableCell>
-                    </TableRow>
+                  {Object.entries(data).map(([symbol, records]) => (
+                    <SymbolRow key={symbol} symbol={symbol} records={records} />
                   ))}
                 </TableBody>
               </Table>
@@ -167,48 +233,29 @@ export default function Home() {
               </Button>
             </Box>
 
-            <TableContainer sx={{ flex: 1 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {symbols.map(row => (
-                    <TableRow key={row.symbol} hover>
-                      <TableCell>{row.symbol}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <DataGrid
+              rows={symbols}
+              columns={symbolColumns}
+              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              pageSizeOptions={[5, 10]}
+              sx={{ border: 0 }}
+              autoHeight
+            />
           </Paper>
         </Grid>
+
         {/* News Articles — full width */}
         <Grid size={12}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" sx={{ mb: 1 }}>News</Typography>
-            <TableContainer>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ width: 120 }}>Symbol</TableCell>
-                    <TableCell sx={{ width: 180 }}>Published</TableCell>
-                    <TableCell>Summary</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {news.map((row, i) => (
-                    <TableRow key={i} hover>
-                      <TableCell>{(row.tags || []).join(', ') || '—'}</TableCell>
-                      <TableCell>{row.published_at ? new Date(row.published_at).toLocaleString() : '—'}</TableCell>
-                      <TableCell>{row.summary || '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <DataGrid
+              rows={news}
+              columns={newsColumns}
+              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              pageSizeOptions={[5, 10, 25]}
+              sx={{ border: 0 }}
+              autoHeight
+            />
           </Paper>
         </Grid>
       </Grid>
