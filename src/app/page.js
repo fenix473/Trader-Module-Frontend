@@ -29,6 +29,8 @@ import {
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import { DataGrid } from '@mui/x-data-grid';
 import {
   AreaChart,
@@ -188,17 +190,29 @@ function MarketChart({ symbols }) {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
+  const [dayOffset, setDayOffset] = useState(0); // 0 = today, 1 = yesterday, …
+
+  const dayLabel = (offset) => {
+    if (offset === 0) return 'Today';
+    if (offset === 1) return 'Yesterday';
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+  };
+
+  const getETDateParam = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+  };
 
   useEffect(() => {
     if (!selectedSymbol) return;
     setChartLoading(true);
-    fetch(`${API}/prices/${selectedSymbol}?limit=500`)
+    const date = getETDateParam(dayOffset);
+    fetch(`${API}/prices/${selectedSymbol}?date=${date}`)
       .then(res => res.json())
       .then(rows => {
-        const todayET = new Date(
-          new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
-        ).toDateString();
-
         const mapped = rows
           .map(r => {
             const et = new Date(
@@ -207,9 +221,8 @@ function MarketChart({ symbols }) {
             return { et, price: parseFloat(r.price) };
           })
           .filter(r => {
-            if (r.et.toDateString() !== todayET) return false;
             const mins = r.et.getHours() * 60 + r.et.getMinutes();
-            return mins >= 570 && mins <= 960; // 9:30 AM–4:00 PM ET
+            return mins >= 570 && mins <= 960;
           })
           .reverse()
           .map(r => ({
@@ -219,7 +232,7 @@ function MarketChart({ symbols }) {
         setChartData(mapped);
       })
       .finally(() => setChartLoading(false));
-  }, [selectedSymbol]);
+  }, [selectedSymbol, dayOffset]);
 
   return (
     <Paper sx={{ p: 2 }}>
@@ -237,6 +250,17 @@ function MarketChart({ symbols }) {
             ))}
           </Select>
         </FormControl>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+          <IconButton size="small" onClick={() => setDayOffset(o => o + 1)}>
+            <KeyboardArrowLeftIcon fontSize="small" />
+          </IconButton>
+          <Typography variant="body2" sx={{ minWidth: 80, textAlign: 'center', color: 'rgba(255,255,255,0.8)' }}>
+            {dayLabel(dayOffset)}
+          </Typography>
+          <IconButton size="small" onClick={() => setDayOffset(o => o - 1)} disabled={dayOffset === 0}>
+            <KeyboardArrowRightIcon fontSize="small" />
+          </IconButton>
+        </Box>
         {chartLoading && <CircularProgress size={20} />}
       </Box>
       {chartData.length > 0 ? (
@@ -348,7 +372,7 @@ export default function Home() {
       .then(rows => Array.isArray(rows) && setNews(rows.map((row, i) => ({
         id: i,
         _tags: (row.tags || []).map(t => t.toUpperCase()),
-        _enriched_status: row.enriched_status || null,
+        _enriched_status: row.enrichment_status || null,
         tags: (row.tags || []).join(', ') || '—',
         published_at: row.published_at ? new Date(row.published_at).toLocaleString() : '—',
         summary: row.summary || '—',
