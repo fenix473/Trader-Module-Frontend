@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import {
   Box,
   Collapse,
@@ -37,6 +39,55 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+    background: { default: 'rgba(0,0,0,0)', paper: 'rgba(0,0,0,0)' },
+    primary: { main: '#60a5fa' },
+    text: { primary: '#ffffff', secondary: 'rgba(255,255,255,0.7)' },
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          background: 'linear-gradient(165deg, rgba(18,22,40,0.88) 0%, rgba(8,10,24,0.92) 50%, rgba(12,16,32,0.9) 100%)',
+          backdropFilter: 'blur(24px) saturate(1.2)',
+          border: '1px solid rgba(255,255,255,0.22)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: { borderColor: 'rgba(255,255,255,0.1)' },
+        head: { color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          '&:hover': { background: 'rgba(255,255,255,0.04)' },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': { borderColor: 'rgba(255,255,255,0.22)' },
+            '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+          },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        icon: { color: 'rgba(255,255,255,0.7)' },
+      },
+    },
+  },
+});
 
 const API = 'https://trader-module-production.up.railway.app';
 
@@ -141,12 +192,30 @@ function MarketChart({ symbols }) {
   useEffect(() => {
     if (!selectedSymbol) return;
     setChartLoading(true);
-    fetch(`${API}/prices/${selectedSymbol}?limit=100`)
+    fetch(`${API}/prices/${selectedSymbol}?limit=500`)
       .then(res => res.json())
       .then(rows => {
+        const todayET = new Date(
+          new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+        ).toDateString();
+
         const mapped = rows
-          .map(r => ({ time: new Date(r.created_at).toLocaleTimeString(), price: parseFloat(r.price) }))
-          .reverse();
+          .map(r => {
+            const et = new Date(
+              new Date(r.created_at).toLocaleString('en-US', { timeZone: 'America/New_York' })
+            );
+            return { et, price: parseFloat(r.price) };
+          })
+          .filter(r => {
+            if (r.et.toDateString() !== todayET) return false;
+            const mins = r.et.getHours() * 60 + r.et.getMinutes();
+            return mins >= 570 && mins <= 960; // 9:30 AM–4:00 PM ET
+          })
+          .reverse()
+          .map(r => ({
+            mins: r.et.getHours() * 60 + r.et.getMinutes(),
+            price: r.price,
+          }));
         setChartData(mapped);
       })
       .finally(() => setChartLoading(false));
@@ -175,21 +244,39 @@ function MarketChart({ symbols }) {
           <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
             <defs>
               <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1976d2" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
+                <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-            <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <XAxis
+              dataKey="mins"
+              type="number"
+              domain={[570, 960]}
+              ticks={[570, 600, 660, 720, 780, 840, 900, 960]}
+              tickFormatter={m => {
+                const h = Math.floor(m / 60);
+                const min = String(m % 60).padStart(2, '0');
+                return h > 12 ? `${h - 12}:${min}` : `${h}:${min}`;
+              }}
+              tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }}
+            />
+            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.6)' }} />
             <Tooltip
               formatter={val => [`$${val.toFixed(2)}`, 'Price']}
-              contentStyle={{ fontSize: 12 }}
+              labelFormatter={m => {
+                const h = Math.floor(m / 60);
+                const min = String(m % 60).padStart(2, '0');
+                const suffix = h >= 12 ? 'PM' : 'AM';
+                const h12 = h > 12 ? h - 12 : h;
+                return `${h12}:${min} ${suffix} ET`;
+              }}
+              contentStyle={{ fontSize: 12, background: 'rgba(10,14,28,0.95)', border: '1px solid rgba(255,255,255,0.15)' }}
             />
             <Area
               type="monotone"
               dataKey="price"
-              stroke="#1976d2"
+              stroke="#60a5fa"
               strokeWidth={2}
               fill="url(#priceGradient)"
               dot={false}
@@ -304,6 +391,8 @@ export default function Home() {
   };
 
   return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
     <Box sx={{ p: 3, boxSizing: 'border-box' }}>
       <Grid container spacing={2}>
 
@@ -412,5 +501,6 @@ export default function Home() {
         </Alert>
       </Snackbar>
     </Box>
+    </ThemeProvider>
   );
 }
