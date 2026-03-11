@@ -27,14 +27,30 @@ import { DataGrid } from '@mui/x-data-grid';
 
 const API = 'https://trader-module-production.up.railway.app';
 
-function SymbolRow({ symbol, records }) {
+function SymbolRow({ symbol, latest }) {
   const [open, setOpen] = useState(false);
-  const latest = records[0];
+  const [history, setHistory] = useState([]);
+  const [histLoading, setHistLoading] = useState(false);
+
+  const handleToggle = () => {
+    if (!open && history.length === 0) {
+      setHistLoading(true);
+      fetch(`${API}/prices/${symbol}`)
+        .then(res => res.json())
+        .then(rows => setHistory(rows.map(r => ({
+          price: r.price,
+          time: new Date(r.created_at).toLocaleString(),
+        }))))
+        .finally(() => setHistLoading(false));
+    }
+    setOpen(o => !o);
+  };
+
   return (
     <>
       <TableRow sx={{ '& > *': { borderBottom: 'unset' } }}>
         <TableCell sx={{ width: 48 }}>
-          <IconButton size="small" onClick={() => setOpen(o => !o)}>
+          <IconButton size="small" onClick={handleToggle}>
             {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
           </IconButton>
         </TableCell>
@@ -47,22 +63,26 @@ function SymbolRow({ symbol, records }) {
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ margin: 1 }}>
               <Typography variant="subtitle2" gutterBottom>History</Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Price</TableCell>
-                    <TableCell>Time</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {records.map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell>{r.price}</TableCell>
-                      <TableCell>{r.time}</TableCell>
+              {histLoading ? (
+                <CircularProgress size={20} sx={{ m: 1 }} />
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Time</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {history.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{r.price}</TableCell>
+                        <TableCell>{r.time}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </Box>
           </Collapse>
         </TableCell>
@@ -201,7 +221,7 @@ export default function Home() {
                 </TableHead>
                 <TableBody>
                   {Object.entries(data).map(([symbol, records]) => (
-                    <SymbolRow key={symbol} symbol={symbol} records={records} />
+                    <SymbolRow key={symbol} symbol={symbol} latest={records[0]} />
                   ))}
                 </TableBody>
               </Table>
