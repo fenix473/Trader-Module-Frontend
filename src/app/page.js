@@ -348,9 +348,17 @@ function MarketChart({ symbols, news }) {
             }}
           />
         )}
-        {maSignal && maSignal.days_since_cross != null && (
-          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.45)' }}>
-            {maSignal.days_since_cross}d ago
+        {maSignal && (
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)', display: 'flex', gap: 1.5 }}>
+            <span>
+              <span style={{ color: 'rgba(255,255,255,0.35)' }}>Trend </span>
+              {maSignal.days_since_cross != null ? `${maSignal.days_since_cross}d` : 'N/A'}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
+            <span>
+              <span style={{ color: 'rgba(255,255,255,0.35)' }}>Spread </span>
+              {maSignal.ma_spread_pct != null ? `${parseFloat(maSignal.ma_spread_pct).toFixed(2)}%` : 'N/A'}
+            </span>
           </Typography>
         )}
         {maLoading && <CircularProgress size={16} sx={{ color: '#818cf8' }} />}
