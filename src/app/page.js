@@ -211,6 +211,8 @@ function MarketChart({ symbols, news }) {
   const chartContainerRef = useRef(null);
   const [selectedSignal, setSelectedSignal] = useState(null); // null | 'ma_crossover'
   const [maSignal, setMaSignal] = useState(null);
+  const [maLoading, setMaLoading] = useState(false);
+  const maPollingRef = useRef(null);
 
   const dayLabel = (offset) => {
     if (offset === 0) return 'Today';
@@ -227,14 +229,52 @@ function MarketChart({ symbols, news }) {
   };
 
   useEffect(() => {
+    if (maPollingRef.current) { clearInterval(maPollingRef.current); maPollingRef.current = null; }
+
     if (!selectedSymbol || selectedSignal !== 'ma_crossover') {
       setMaSignal(null);
+      setMaLoading(false);
       return;
     }
+
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+    const startPolling = () => {
+      maPollingRef.current = setInterval(() => {
+        fetch(`${API}/signals/ma-crossover/${selectedSymbol}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data && data.computed_date === today) {
+              setMaSignal(data);
+              setMaLoading(false);
+              clearInterval(maPollingRef.current);
+              maPollingRef.current = null;
+            }
+          })
+          .catch(() => {});
+      }, 3000);
+      // Give up after 45s
+      setTimeout(() => {
+        if (maPollingRef.current) { clearInterval(maPollingRef.current); maPollingRef.current = null; setMaLoading(false); }
+      }, 45000);
+    };
+
+    setMaLoading(true);
     fetch(`${API}/signals/ma-crossover/${selectedSymbol}`)
       .then(res => res.ok ? res.json() : null)
-      .then(data => setMaSignal(data))
-      .catch(() => setMaSignal(null));
+      .then(data => {
+        if (data && data.computed_date === today) {
+          setMaSignal(data);
+          setMaLoading(false);
+        } else {
+          if (data) setMaSignal(data); // show stale while refreshing
+          fetch(`${API}/signals/ma-crossover/${selectedSymbol}/refresh`, { method: 'POST' }).catch(() => {});
+          startPolling();
+        }
+      })
+      .catch(() => { setMaSignal(null); setMaLoading(false); });
+
+    return () => { if (maPollingRef.current) { clearInterval(maPollingRef.current); maPollingRef.current = null; } };
   }, [selectedSymbol, selectedSignal]);
 
   useEffect(() => {
@@ -313,6 +353,7 @@ function MarketChart({ symbols, news }) {
             {maSignal.days_since_cross}d ago
           </Typography>
         )}
+        {maLoading && <CircularProgress size={16} sx={{ color: '#818cf8' }} />}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
           <IconButton size="small" onClick={() => setDayOffset(o => o + 1)}>
             <KeyboardArrowLeftIcon fontSize="small" />
