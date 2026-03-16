@@ -41,6 +41,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceDot,
+  ReferenceLine,
 } from 'recharts';
 
 const theme = createTheme({
@@ -208,6 +209,8 @@ function MarketChart({ symbols, news }) {
   const [dayOffset, setDayOffset] = useState(0);
   const [hoveredNews, setHoveredNews] = useState(null);
   const chartContainerRef = useRef(null);
+  const [selectedSignal, setSelectedSignal] = useState(null); // null | 'ma_crossover'
+  const [maSignal, setMaSignal] = useState(null);
 
   const dayLabel = (offset) => {
     if (offset === 0) return 'Today';
@@ -224,15 +227,26 @@ function MarketChart({ symbols, news }) {
   };
 
   useEffect(() => {
+    if (!selectedSymbol || selectedSignal !== 'ma_crossover') {
+      setMaSignal(null);
+      return;
+    }
+    fetch(`${API}/signals/ma-crossover/${selectedSymbol}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setMaSignal(data))
+      .catch(() => setMaSignal(null));
+  }, [selectedSymbol, selectedSignal]);
+
+  useEffect(() => {
     if (!selectedSymbol) return;
     setChartLoading(true);
     const date = getETDateParam(dayOffset);
-    fetch(`${API}/prices/${selectedSymbol}?date=${date}`)
+    fetch(`${API}/prices/${selectedSymbol}?date=${date}&limit=500`)
       .then(res => res.json())
       .then(rows => {
         const mapped = rows
-          .map(r => ({ mins: etMins(r.created_at), price: parseFloat(r.price) }))
-          .filter(r => r.mins >= 570 && r.mins <= 960)
+          .map(r => ({ date: etDateStr(r.created_at), mins: etMins(r.created_at), price: parseFloat(r.price) }))
+          .filter(r => r.date === date && r.mins >= 570 && r.mins <= 960)
           .reverse();
         setChartData(mapped);
       })
@@ -262,7 +276,7 @@ function MarketChart({ symbols, news }) {
 
   return (
     <Paper sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="h6">Price Chart</Typography>
         <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel>Symbol</InputLabel>
@@ -270,6 +284,35 @@ function MarketChart({ symbols, news }) {
             {symbols.map(s => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
           </Select>
         </FormControl>
+        <Chip
+          label="MA Crossover"
+          size="small"
+          onClick={() => setSelectedSignal(s => s === 'ma_crossover' ? null : 'ma_crossover')}
+          sx={{
+            bgcolor: selectedSignal === 'ma_crossover' ? '#6366f1' : 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            fontWeight: selectedSignal === 'ma_crossover' ? 700 : 400,
+            cursor: 'pointer',
+            '&:hover': { bgcolor: selectedSignal === 'ma_crossover' ? '#4f46e5' : 'rgba(255,255,255,0.18)' },
+          }}
+        />
+        {maSignal && (
+          <Chip
+            size="small"
+            label={maSignal.golden_cross_active ? '▲ Golden Cross' : '▼ Death Cross'}
+            sx={{
+              bgcolor: maSignal.golden_cross_active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+              color: maSignal.golden_cross_active ? '#22c55e' : '#ef4444',
+              border: `1px solid ${maSignal.golden_cross_active ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+              fontWeight: 600,
+            }}
+          />
+        )}
+        {maSignal && maSignal.days_since_cross != null && (
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.45)' }}>
+            {maSignal.days_since_cross}d ago
+          </Typography>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
           <IconButton size="small" onClick={() => setDayOffset(o => o + 1)}>
             <KeyboardArrowLeftIcon fontSize="small" />
@@ -307,6 +350,12 @@ function MarketChart({ symbols, news }) {
                 contentStyle={{ fontSize: 12, background: 'rgba(10,14,28,0.95)', border: '1px solid rgba(255,255,255,0.15)' }}
               />
               <Area type="monotone" dataKey="price" stroke="#60a5fa" strokeWidth={2} fill="url(#priceGradient)" dot={false} />
+              {maSignal && selectedSignal === 'ma_crossover' && (<>
+                <ReferenceLine y={maSignal.sma_50} stroke="#818cf8" strokeDasharray="5 3" strokeWidth={1.5}
+                  label={{ value: `SMA 50  $${maSignal.sma_50.toFixed(2)}`, position: 'insideTopRight', fontSize: 10, fill: '#818cf8' }} />
+                <ReferenceLine y={maSignal.sma_200} stroke="#fb923c" strokeDasharray="5 3" strokeWidth={1.5}
+                  label={{ value: `SMA 200  $${maSignal.sma_200.toFixed(2)}`, position: 'insideBottomRight', fontSize: 10, fill: '#fb923c' }} />
+              </>)}
               {newsPoints.map((n, i) => (
                 <ReferenceDot key={i} x={n.mins} y={n.price}
                   shape={({ cx, cy }) => (
