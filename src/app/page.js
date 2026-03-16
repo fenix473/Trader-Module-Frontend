@@ -209,10 +209,13 @@ function MarketChart({ symbols, news }) {
   const [dayOffset, setDayOffset] = useState(0);
   const [hoveredNews, setHoveredNews] = useState(null);
   const chartContainerRef = useRef(null);
-  const [selectedSignal, setSelectedSignal] = useState(null); // null | 'ma_crossover'
+  const [selectedSignal, setSelectedSignal] = useState(null); // null | 'ma_crossover' | 'rsi_divergence'
   const [maSignal, setMaSignal] = useState(null);
   const [maLoading, setMaLoading] = useState(false);
   const maPollingRef = useRef(null);
+  const [rsiDivSignal, setRsiDivSignal] = useState(null);
+  const [rsiDivLoading, setRsiDivLoading] = useState(false);
+  const rsiDivPollingRef = useRef(null);
 
   const dayLabel = (offset) => {
     if (offset === 0) return 'Today';
@@ -275,6 +278,70 @@ function MarketChart({ symbols, news }) {
       .catch(() => { setMaSignal(null); setMaLoading(false); });
 
     return () => { if (maPollingRef.current) { clearInterval(maPollingRef.current); maPollingRef.current = null; } };
+  }, [selectedSymbol, selectedSignal]);
+
+  useEffect(() => {
+    if (rsiDivPollingRef.current) { clearInterval(rsiDivPollingRef.current); rsiDivPollingRef.current = null; }
+
+    if (!selectedSymbol || selectedSignal !== 'rsi_divergence') {
+      setRsiDivSignal(null);
+      setRsiDivLoading(false);
+      return;
+    }
+
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+    const startPolling = () => {
+      rsiDivPollingRef.current = setInterval(() => {
+        fetch(`${API}/signals/rsi-divergence?symbol=${selectedSymbol}&limit=1`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data && data.length > 0) {
+              const row = data[0];
+              if (row.computed_at && row.computed_at.startsWith(today)) {
+                setRsiDivSignal(row);
+                setRsiDivLoading(false);
+                clearInterval(rsiDivPollingRef.current);
+                rsiDivPollingRef.current = null;
+              }
+            }
+          })
+          .catch(() => {});
+      }, 3000);
+      setTimeout(() => {
+        if (rsiDivPollingRef.current) { clearInterval(rsiDivPollingRef.current); rsiDivPollingRef.current = null; setRsiDivLoading(false); }
+      }, 45000);
+    };
+
+    setRsiDivLoading(true);
+    fetch(`${API}/signals/rsi-divergence?symbol=${selectedSymbol}&limit=1`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.length > 0) {
+          const row = data[0];
+          setRsiDivSignal(row);
+          if (row.computed_at && row.computed_at.startsWith(today)) {
+            setRsiDivLoading(false);
+          } else {
+            fetch(`${API}/signals/rsi-divergence/trigger`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ symbol: selectedSymbol, timeframe: '1d' }),
+            }).catch(() => {});
+            startPolling();
+          }
+        } else {
+          fetch(`${API}/signals/rsi-divergence/trigger`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: selectedSymbol, timeframe: '1d' }),
+          }).catch(() => {});
+          startPolling();
+        }
+      })
+      .catch(() => { setRsiDivSignal(null); setRsiDivLoading(false); });
+
+    return () => { if (rsiDivPollingRef.current) { clearInterval(rsiDivPollingRef.current); rsiDivPollingRef.current = null; } };
   }, [selectedSymbol, selectedSignal]);
 
   useEffect(() => {
@@ -362,6 +429,37 @@ function MarketChart({ symbols, news }) {
           </Typography>
         )}
         {maLoading && <CircularProgress size={16} sx={{ color: '#818cf8' }} />}
+        <Chip
+          label="RSI Div"
+          size="small"
+          onClick={() => setSelectedSignal(s => s === 'rsi_divergence' ? null : 'rsi_divergence')}
+          sx={{
+            bgcolor: selectedSignal === 'rsi_divergence' ? '#0ea5e9' : 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            fontWeight: selectedSignal === 'rsi_divergence' ? 700 : 400,
+            cursor: 'pointer',
+            '&:hover': { bgcolor: selectedSignal === 'rsi_divergence' ? '#0284c7' : 'rgba(255,255,255,0.18)' },
+          }}
+        />
+        {rsiDivSignal && (() => {
+          const divMap = {
+            bullish:       { icon: '▲', label: 'Bullish',     bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.4)',  color: '#22c55e' },
+            bearish:       { icon: '▼', label: 'Bearish',     bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.4)',  color: '#ef4444' },
+            hidden_bullish:{ icon: '▲', label: 'Hidden Bull', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#f59e0b' },
+            hidden_bearish:{ icon: '▼', label: 'Hidden Bear', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#f59e0b' },
+          };
+          const m = divMap[rsiDivSignal.divergence_type];
+          if (!m) return (
+            <Chip size="small" label="No Divergence"
+              sx={{ bgcolor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.15)' }} />
+          );
+          return (
+            <Chip size="small"
+              label={`${m.icon} ${m.label}${rsiDivSignal.confidence ? ` · ${rsiDivSignal.confidence}` : ''}`}
+              sx={{ bgcolor: m.bg, color: m.color, border: `1px solid ${m.border}`, fontWeight: 600 }} />
+          );
+        })()}
+        {rsiDivLoading && <CircularProgress size={16} sx={{ color: '#0ea5e9' }} />}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
           <IconButton size="small" onClick={() => setDayOffset(o => o + 1)}>
             <KeyboardArrowLeftIcon fontSize="small" />
