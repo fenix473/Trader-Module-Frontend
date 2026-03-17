@@ -26,6 +26,8 @@ import {
   Alert,
   CircularProgress,
   Chip,
+  LinearProgress,
+  Divider,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -559,6 +561,277 @@ function MarketChart({ symbols, news }) {
   );
 }
 
+const timeAgo = (ts) => {
+  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+};
+
+function AnalysisReport({ report }) {
+  const dec = (report.decision || '').toUpperCase();
+  const score = parseFloat(report.score) || 0;
+  const scoreColor = score >= 0.65 ? '#22c55e' : score >= 0.4 ? '#f59e0b' : '#ef4444';
+  const decConfig = {
+    BUY:  { bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.4)',  color: '#22c55e', glow: 'rgba(34,197,94,0.25)' },
+    SELL: { bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.4)',  color: '#ef4444', glow: 'rgba(239,68,68,0.25)' },
+    HOLD: { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#f59e0b', glow: 'rgba(245,158,11,0.25)' },
+  };
+  const dc = decConfig[dec] || decConfig.HOLD;
+  const posColors = { large: '#22c55e', medium: '#60a5fa', small: '#f59e0b', none: 'rgba(255,255,255,0.35)' };
+
+  const maSignalColor = (type) => {
+    if (!type) return 'rgba(255,255,255,0.6)';
+    const t = type.toLowerCase();
+    if (t.includes('golden') || t.includes('bull')) return '#22c55e';
+    if (t.includes('death') || t.includes('bear')) return '#ef4444';
+    return '#818cf8';
+  };
+
+  const rsiColor = (type) => {
+    if (!type) return 'rgba(255,255,255,0.6)';
+    const t = type.toLowerCase();
+    if (t.includes('bullish')) return '#22c55e';
+    if (t.includes('bearish')) return '#ef4444';
+    return '#0ea5e9';
+  };
+
+  return (
+    <Box>
+      {/* Decision + score row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 2.5, flexWrap: 'wrap' }}>
+        <Box sx={{
+          px: 3, py: 1.5, borderRadius: 2,
+          bgcolor: dc.bg, border: `1px solid ${dc.border}`,
+          boxShadow: `0 0 24px ${dc.glow}`,
+        }}>
+          <Typography sx={{ color: dc.color, fontWeight: 800, fontSize: '1.6rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            {dec}
+          </Typography>
+        </Box>
+
+        <Box sx={{ flex: 1, minWidth: 220 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', minWidth: 40 }}>Score</Typography>
+            <LinearProgress
+              variant="determinate" value={score * 100}
+              sx={{
+                flex: 1, maxWidth: 180, height: 7, borderRadius: 4,
+                bgcolor: 'rgba(255,255,255,0.08)',
+                '& .MuiLinearProgress-bar': { bgcolor: scoreColor, borderRadius: 4 },
+              }}
+            />
+            <Typography variant="body2" sx={{ color: scoreColor, fontWeight: 700, minWidth: 32 }}>
+              {score.toFixed(2)}
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            {report.price_at_analysis && (
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)' }}>
+                <span style={{ color: 'rgba(255,255,255,0.3)' }}>Price </span>
+                ${parseFloat(report.price_at_analysis).toFixed(2)}
+              </Typography>
+            )}
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.55)' }}>
+              <span style={{ color: 'rgba(255,255,255,0.3)' }}>Size </span>
+              <span style={{ color: posColors[(report.position_size || 'none').toLowerCase()] || '#fff', fontWeight: 600 }}>
+                {(report.position_size || 'none').toUpperCase()}
+              </span>
+            </Typography>
+            {report.signal_agreement && (
+              <Chip size="small" label="✓ Signals Agree"
+                sx={{ height: 20, fontSize: '0.68rem', bgcolor: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }} />
+            )}
+            {report.news_veto && (
+              <Chip size="small" label="⚑ News Veto"
+                sx={{ height: 20, fontSize: '0.68rem', bgcolor: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }} />
+            )}
+          </Box>
+        </Box>
+
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.28)', alignSelf: 'flex-start' }}>
+          {timeAgo(report.generated_at)}
+        </Typography>
+      </Box>
+
+      {/* Signal cards */}
+      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+        <Grid size={4}>
+          <Box sx={{ p: 1.5, height: '100%', borderRadius: 1.5, bgcolor: 'rgba(129,140,248,0.07)', border: '1px solid rgba(129,140,248,0.18)' }}>
+            <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', mb: 0.75 }}>
+              MA Crossover
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: maSignalColor(report.ma_signal_type), mb: 0.5 }}>
+              {report.ma_signal_type || '—'}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+              {report.ma_trend_strength && (
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.45)' }}>{report.ma_trend_strength}</Typography>
+              )}
+              {report.ma_confidence && (
+                <Chip size="small" label={report.ma_confidence}
+                  sx={{ height: 16, fontSize: '0.65rem', bgcolor: 'rgba(129,140,248,0.12)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.25)' }} />
+              )}
+            </Box>
+          </Box>
+        </Grid>
+
+        <Grid size={4}>
+          <Box sx={{ p: 1.5, height: '100%', borderRadius: 1.5, bgcolor: 'rgba(14,165,233,0.07)', border: '1px solid rgba(14,165,233,0.18)' }}>
+            <Typography variant="caption" sx={{ color: '#0ea5e9', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', mb: 0.75 }}>
+              RSI Divergence
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: rsiColor(report.rsi_divergence_type), mb: 0.5 }}>
+              {report.rsi_divergence_type || '—'}
+            </Typography>
+            {report.rsi_trend_strength && (
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.45)', display: 'block' }}>{report.rsi_trend_strength}</Typography>
+            )}
+          </Box>
+        </Grid>
+
+        <Grid size={4}>
+          <Box sx={{
+            p: 1.5, height: '100%', borderRadius: 1.5,
+            bgcolor: report.news_veto ? 'rgba(239,68,68,0.07)' : 'rgba(245,158,11,0.07)',
+            border: `1px solid ${report.news_veto ? 'rgba(239,68,68,0.18)' : 'rgba(245,158,11,0.18)'}`,
+          }}>
+            <Typography variant="caption" sx={{ color: report.news_veto ? '#ef4444' : '#f59e0b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', mb: 0.75 }}>
+              News{report.news_veto ? ' · Veto' : ''}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', lineHeight: 1.45 }}>
+              {report.news_summary
+                ? report.news_summary.slice(0, 120) + (report.news_summary.length > 120 ? '…' : '')
+                : '—'}
+            </Typography>
+          </Box>
+        </Grid>
+      </Grid>
+
+      {/* Reasoning */}
+      {report.reasoning && (
+        <Box sx={{ p: 1.75, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', mb: 0.75 }}>
+            Reasoning
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.65, fontSize: '0.8rem' }}>
+            {report.reasoning}
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function HistoryRow({ report }) {
+  const [open, setOpen] = useState(false);
+  const dec = (report.decision || '').toUpperCase();
+  const score = parseFloat(report.score) || 0;
+  const scoreColor = score >= 0.65 ? '#22c55e' : score >= 0.4 ? '#f59e0b' : '#ef4444';
+  const decConfig = {
+    BUY:  { bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.3)',  color: '#22c55e' },
+    SELL: { bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)',  color: '#ef4444' },
+    HOLD: { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)', color: '#f59e0b' },
+  };
+  const dc = decConfig[dec] || decConfig.HOLD;
+  const posColors = { large: '#22c55e', medium: '#60a5fa', small: '#f59e0b', none: 'rgba(255,255,255,0.3)' };
+
+  return (
+    <Box sx={{ borderRadius: 1.5, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+      <Box
+        onClick={() => setOpen(o => !o)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.25,
+          cursor: 'pointer',
+          bgcolor: open ? 'rgba(255,255,255,0.04)' : 'transparent',
+          transition: 'background 0.15s',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+        }}
+      >
+        <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 700, fontSize: '0.72rem', minWidth: 44 }}>
+          {report.symbol}
+        </Typography>
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.4)', minWidth: 148, fontSize: '0.72rem' }}>
+          {new Date(report.generated_at).toLocaleString()}
+        </Typography>
+
+        <Box sx={{ px: 1.25, py: 0.2, borderRadius: 0.75, bgcolor: dc.bg, border: `1px solid ${dc.border}`, minWidth: 44, textAlign: 'center' }}>
+          <Typography sx={{ color: dc.color, fontWeight: 700, fontSize: '0.7rem', lineHeight: 1.6 }}>{dec}</Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, maxWidth: 200 }}>
+          <LinearProgress
+            variant="determinate" value={score * 100}
+            sx={{
+              flex: 1, height: 5, borderRadius: 3,
+              bgcolor: 'rgba(255,255,255,0.07)',
+              '& .MuiLinearProgress-bar': { bgcolor: scoreColor, borderRadius: 3 },
+            }}
+          />
+          <Typography variant="caption" sx={{ color: scoreColor, fontWeight: 600, minWidth: 28, fontSize: '0.72rem' }}>
+            {score.toFixed(2)}
+          </Typography>
+        </Box>
+
+        <Typography variant="caption" sx={{
+          color: posColors[(report.position_size || 'none').toLowerCase()] || '#fff',
+          fontWeight: 600, minWidth: 52, fontSize: '0.72rem',
+        }}>
+          {(report.position_size || 'none').toUpperCase()}
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {report.signal_agreement && (
+            <Chip size="small" label="✓ Agree" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }} />
+          )}
+          {report.news_veto && (
+            <Chip size="small" label="⚑ Veto" sx={{ height: 18, fontSize: '0.6rem', bgcolor: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }} />
+          )}
+        </Box>
+
+        <IconButton size="small" sx={{ ml: 'auto', color: 'rgba(255,255,255,0.3)', p: 0.25 }}>
+          {open ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+        </IconButton>
+      </Box>
+
+      <Collapse in={open}>
+        <Box sx={{ px: 2, py: 1.75, bgcolor: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <Grid container spacing={1.5} sx={{ mb: report.reasoning ? 1.5 : 0 }}>
+            <Grid size={4}>
+              <Typography variant="caption" sx={{ color: '#818cf8', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>MA Crossover</Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{report.ma_signal_type || '—'}</Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.38)' }}>
+                {[report.ma_trend_strength, report.ma_confidence].filter(Boolean).join(' · ') || '—'}
+              </Typography>
+            </Grid>
+            <Grid size={4}>
+              <Typography variant="caption" sx={{ color: '#0ea5e9', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RSI Divergence</Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{report.rsi_divergence_type || '—'}</Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.38)' }}>{report.rsi_trend_strength || '—'}</Typography>
+            </Grid>
+            <Grid size={4}>
+              <Typography variant="caption" sx={{ color: report.news_veto ? '#ef4444' : '#f59e0b', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                News{report.news_veto ? ' · Veto' : ''}
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.74rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.45 }}>
+                {report.news_summary ? report.news_summary.slice(0, 110) + (report.news_summary.length > 110 ? '…' : '') : '—'}
+              </Typography>
+            </Grid>
+          </Grid>
+          {report.reasoning && (
+            <Typography variant="body2" sx={{
+              color: 'rgba(255,255,255,0.58)', fontSize: '0.78rem', lineHeight: 1.65,
+              borderTop: '1px solid rgba(255,255,255,0.06)', pt: 1.25,
+            }}>
+              {report.reasoning}
+            </Typography>
+          )}
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
 const symbolColumns = [
   { field: 'symbol', headerName: 'Symbol', flex: 1 },
 ];
@@ -579,6 +852,16 @@ export default function Home() {
   const [marketOpen, setMarketOpen] = useState(null);
   const [newsFilter, setNewsFilter] = useState(new Set());
   const [enrichedOnly, setEnrichedOnly] = useState(true);
+  const [analysisSymbol, setAnalysisSymbol] = useState('');
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisWaiting, setAnalysisWaiting] = useState(false);
+  const analysisPollingRef = useRef(null);
+  const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historySymbolFilter, setHistorySymbolFilter] = useState('');
 
   const fetchPrices = () => {
     fetch(`${API}/prices/latest`)
@@ -634,6 +917,75 @@ export default function Home() {
       clearInterval(newsInterval);
     };
   }, []);
+
+  const fetchAnalysisHistory = (page = 0, symbolFilter = '') => {
+    setHistoryLoading(true);
+    const params = `limit=10&offset=${page * 10}${symbolFilter ? `&symbol=${symbolFilter}` : ''}`;
+    fetch(`${API}/analysis/reports?${params}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        const rows = Array.isArray(data) ? data : [];
+        setAnalysisHistory(rows);
+        setHistoryHasMore(rows.length === 10);
+      })
+      .catch(() => setAnalysisHistory([]))
+      .finally(() => setHistoryLoading(false));
+  };
+
+  useEffect(() => { fetchAnalysisHistory(historyPage, historySymbolFilter); }, [historyPage, historySymbolFilter]);
+
+  const startAnalysisPolling = (symbol, requestTime) => {
+    if (analysisPollingRef.current) clearInterval(analysisPollingRef.current);
+    const check = () => {
+      fetch(`${API}/analysis/latest/${symbol}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.generated_at >= requestTime) {
+            setAnalysisResult(data);
+            setAnalysisWaiting(false);
+            clearInterval(analysisPollingRef.current);
+            analysisPollingRef.current = null;
+            fetchAnalysisHistory(0);
+            setHistoryPage(0);
+          }
+        })
+        .catch(() => {});
+    };
+    check();
+    analysisPollingRef.current = setInterval(check, 4000);
+    setTimeout(() => {
+      if (analysisPollingRef.current) {
+        clearInterval(analysisPollingRef.current);
+        analysisPollingRef.current = null;
+        setAnalysisWaiting(false);
+      }
+    }, 120000);
+  };
+
+  const handleRequestAnalysis = async () => {
+    if (!analysisSymbol) return;
+    setAnalysisLoading(true);
+    try {
+      const requestTime = new Date().toISOString();
+      const res = await fetch(`${API}/analysis/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: analysisSymbol }),
+      });
+      if (!res.ok) {
+        setSnackbar({ open: true, message: 'Failed to queue analysis', severity: 'error' });
+      } else {
+        setSnackbar({ open: true, message: `Analysis queued for ${analysisSymbol}`, severity: 'success' });
+        setAnalysisResult(null);
+        setAnalysisWaiting(true);
+        startAnalysisPolling(analysisSymbol, requestTime);
+      }
+    } catch {
+      setSnackbar({ open: true, message: 'Network error', severity: 'error' });
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   const handleAddSymbol = async () => {
     const symbol = input.trim().toUpperCase();
@@ -737,6 +1089,174 @@ export default function Home() {
               sx={{ border: 0 }}
               autoHeight
             />
+
+          </Paper>
+        </Grid>
+
+        {/* Analysis — full width */}
+        <Grid size={12}>
+          <Paper sx={{ p: 0, overflow: 'hidden' }}>
+            <Grid container sx={{ minHeight: 280 }}>
+
+              {/* Left: request panel */}
+              <Grid size={3} sx={{
+                p: 3,
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                background: 'linear-gradient(160deg, rgba(99,102,241,0.13) 0%, rgba(14,165,233,0.06) 100%)',
+                borderRight: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box>
+                    <Typography variant="overline" sx={{ color: '#818cf8', letterSpacing: '0.12em', fontWeight: 700, fontSize: '0.65rem', display: 'block', mb: 0.5 }}>
+                      AI Analysis
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
+                      Run Signal<br />Analysis
+                    </Typography>
+                  </Box>
+
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Symbol</InputLabel>
+                    <Select
+                      value={analysisSymbol}
+                      label="Symbol"
+                      onChange={e => setAnalysisSymbol(e.target.value)}
+                    >
+                      {symbols.map(s => (
+                        <MenuItem key={s.symbol} value={s.symbol}>{s.symbol}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    onClick={handleRequestAnalysis}
+                    disabled={analysisLoading || !analysisSymbol || analysisWaiting}
+                    sx={{
+                      background: (analysisWaiting || analysisLoading)
+                        ? 'rgba(99,102,241,0.18)'
+                        : 'linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      py: 1.25,
+                      borderRadius: 1.5,
+                      fontSize: '0.95rem',
+                      letterSpacing: '0.06em',
+                      boxShadow: (analysisWaiting || analysisLoading) ? 'none' : '0 4px 22px rgba(99,102,241,0.45)',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #4f46e5 0%, #0284c7 100%)',
+                        boxShadow: '0 6px 30px rgba(99,102,241,0.6)',
+                      },
+                      '&.Mui-disabled': { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)' },
+                    }}
+                  >
+                    {analysisLoading
+                      ? <CircularProgress size={20} color="inherit" />
+                      : analysisWaiting ? 'Analyzing…' : 'Analyze'}
+                  </Button>
+                </Box>
+
+                {analysisResult && (
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.22)' }}>
+                    {analysisResult.symbol} · {timeAgo(analysisResult.generated_at)}
+                  </Typography>
+                )}
+              </Grid>
+
+              {/* Right: result / empty / waiting */}
+              <Grid size={9} sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                {analysisWaiting && !analysisResult ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, flex: 1 }}>
+                    <CircularProgress size={38} sx={{ color: '#6366f1' }} />
+                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
+                      N8N is processing your request…
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.22)' }}>
+                      Polling every 4s · up to 2 min
+                    </Typography>
+                  </Box>
+                ) : analysisResult ? (
+                  <AnalysisReport report={analysisResult} />
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, flex: 1 }}>
+                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.14)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                      No analysis yet
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.1)', textAlign: 'center', maxWidth: 340, lineHeight: 1.85 }}>
+                      Select a tracked symbol and click Analyze to receive AI‑powered signal scoring,
+                      a BUY / SELL / HOLD decision, and full reasoning from N8N.
+                    </Typography>
+                  </Box>
+                )}
+              </Grid>
+
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Analysis History */}
+        <Grid size={12}>
+          <Paper sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <Typography variant="h6">Analysis History</Typography>
+              {historyLoading && <CircularProgress size={14} sx={{ color: '#60a5fa' }} />}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                <IconButton size="small" onClick={() => setHistoryPage(p => p - 1)} disabled={historyPage === 0 || historyLoading}>
+                  <KeyboardArrowLeftIcon fontSize="small" />
+                </IconButton>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', minWidth: 48, textAlign: 'center' }}>
+                  Page {historyPage + 1}
+                </Typography>
+                <IconButton size="small" onClick={() => setHistoryPage(p => p + 1)} disabled={!historyHasMore || historyLoading}>
+                  <KeyboardArrowRightIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+              <Chip
+                label="All"
+                size="small"
+                onClick={() => { setHistorySymbolFilter(''); setHistoryPage(0); }}
+                sx={{
+                  bgcolor: historySymbolFilter === '' ? '#60a5fa' : 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  fontWeight: historySymbolFilter === '' ? 700 : 400,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: historySymbolFilter === '' ? '#3b82f6' : 'rgba(255,255,255,0.18)' },
+                }}
+              />
+              {symbols.map(s => {
+                const active = historySymbolFilter === s.symbol;
+                return (
+                  <Chip
+                    key={s.symbol}
+                    label={s.symbol}
+                    size="small"
+                    onClick={() => { setHistorySymbolFilter(active ? '' : s.symbol); setHistoryPage(0); }}
+                    sx={{
+                      bgcolor: active ? '#818cf8' : 'rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      fontWeight: active ? 700 : 400,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: active ? '#6366f1' : 'rgba(255,255,255,0.18)' },
+                    }}
+                  />
+                );
+              })}
+            </Box>
+
+            {!historyLoading && analysisHistory.length === 0 ? (
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.25)', py: 3, textAlign: 'center' }}>
+                No analysis reports yet
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                {analysisHistory.map(r => <HistoryRow key={r.id} report={r} />)}
+              </Box>
+            )}
           </Paper>
         </Grid>
 
