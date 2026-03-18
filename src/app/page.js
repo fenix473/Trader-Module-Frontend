@@ -1070,6 +1070,7 @@ export default function Home() {
   const [symbols, setSymbols] = useState([]);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [input, setInput] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [marketOpen, setMarketOpen] = useState(null);
@@ -1079,7 +1080,9 @@ export default function Home() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisWaiting, setAnalysisWaiting] = useState(false);
+  const [analysisTimedOut, setAnalysisTimedOut] = useState(false);
   const analysisPollingRef = useRef(null);
+  const prevReportIdRef = useRef(null);
   const [analysisHistory, setAnalysisHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
@@ -1088,7 +1091,7 @@ export default function Home() {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const fetchPrices = () => {
-    fetch(`${API}/prices/latest`)
+    return fetch(`${API}/prices/latest`)
       .then(res => res.json())
       .then(rows => {
         const mapped = rows.map(row => ({
@@ -1115,7 +1118,7 @@ export default function Home() {
   };
 
   const fetchNews = () => {
-    fetch(`${API}/news/latest`)
+    return fetch(`${API}/news/latest`)
       .then(res => res.json())
       .then(rows => Array.isArray(rows) && setNews(rows.map((row, i) => ({
         id: i,
@@ -1131,9 +1134,8 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchPrices();
-    fetchMarketStatus();
-    fetchNews();
+    Promise.all([fetchPrices(), fetchNews(), fetchMarketStatus()])
+      .finally(() => setPageLoading(false));
     const interval = setInterval(fetchMarketStatus, 60_000);
     const newsInterval = setInterval(fetchNews, 5 * 60_000);
     return () => {
@@ -1166,17 +1168,18 @@ export default function Home() {
       .catch(() => {});
   }, [analysisSymbol]);
 
-  const startAnalysisPolling = (symbol, requestTime) => {
+  const startAnalysisPolling = (symbol) => {
     if (analysisPollingRef.current) clearInterval(analysisPollingRef.current);
     const check = () => {
       fetch(`${API}/analysis/latest/${symbol}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data && new Date(data.generated_at) > new Date(requestTime)) {
+          if (data && data.id !== prevReportIdRef.current) {
             clearInterval(analysisPollingRef.current);
             analysisPollingRef.current = null;
             setAnalysisResult(data);
             setAnalysisWaiting(false);
+            setAnalysisTimedOut(false);
             setHistoryPage(0);
             setHistoryRefreshKey(k => k + 1);
             setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
@@ -1190,17 +1193,34 @@ export default function Home() {
         clearInterval(analysisPollingRef.current);
         analysisPollingRef.current = null;
         setAnalysisWaiting(false);
+        setAnalysisTimedOut(true);
       }
     }, 120000);
   };
 
+  const handleLoadLatest = () => {
+    if (!analysisSymbol) return;
+    fetch(`${API}/analysis/latest/${analysisSymbol}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setAnalysisResult(data);
+          setAnalysisTimedOut(false);
+          setHistoryPage(0);
+          setHistoryRefreshKey(k => k + 1);
+        }
+      })
+      .catch(() => {});
+  };
+
   const handleRequestAnalysis = async () => {
     if (!analysisSymbol) return;
-    const requestTime = new Date().toISOString();
+    prevReportIdRef.current = analysisResult?.id ?? null;
     setAnalysisResult(null);
     setAnalysisWaiting(true);
+    setAnalysisTimedOut(false);
     setAnalysisLoading(true);
-    startAnalysisPolling(analysisSymbol, requestTime);
+    startAnalysisPolling(analysisSymbol);
     try {
       const res = await fetch(`${API}/analysis/request`, {
         method: 'POST',
@@ -1253,6 +1273,15 @@ export default function Home() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      {pageLoading && (
+        <Box sx={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          bgcolor: 'rgba(8,10,24,0.85)', backdropFilter: 'blur(4px)',
+        }}>
+          <CircularProgress size={56} thickness={3} sx={{ color: '#60a5fa' }} />
+        </Box>
+      )}
     <Box sx={{ p: 3, boxSizing: 'border-box' }}>
       <Grid container spacing={2}>
 
@@ -1413,13 +1442,31 @@ export default function Home() {
                   </Box>
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, flex: 1 }}>
-                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.14)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                      No analysis yet
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.1)', textAlign: 'center', maxWidth: 340, lineHeight: 1.85 }}>
-                      Select a tracked symbol and click Analyze to receive AI‑powered signal scoring,
-                      a BUY / SELL / HOLD decision, and full reasoning from N8N.
-                    </Typography>
+                    {analysisTimedOut ? (
+                      <>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                          Analysis may be ready
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          onClick={handleLoadLatest}
+                          disabled={!analysisSymbol}
+                          sx={{ borderColor: '#60a5fa', color: '#60a5fa', '&:hover': { borderColor: '#93c5fd', color: '#93c5fd' } }}
+                        >
+                          Load Results
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.14)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                          No analysis yet
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.1)', textAlign: 'center', maxWidth: 340, lineHeight: 1.85 }}>
+                          Select a tracked symbol and click Analyze to receive AI‑powered signal scoring,
+                          a BUY / SELL / HOLD decision, and full reasoning from N8N.
+                        </Typography>
+                      </>
+                    )}
                   </Box>
                 )}
               </Grid>
