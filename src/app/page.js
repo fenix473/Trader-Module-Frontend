@@ -749,7 +749,7 @@ function AnalysisReport({ report }) {
 
       {/* Signal cards */}
       <Grid container spacing={1.5} sx={{ mb: 2 }}>
-        <Grid size={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Box sx={{
             p: 1.75, height: '100%', borderRadius: 1.5,
             bgcolor: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.18)',
@@ -772,7 +772,7 @@ function AnalysisReport({ report }) {
             </Box>
           </Box>
         </Grid>
-        <Grid size={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Box sx={{
             p: 1.75, height: '100%', borderRadius: 1.5,
             bgcolor: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.18)',
@@ -789,7 +789,7 @@ function AnalysisReport({ report }) {
             )}
           </Box>
         </Grid>
-        <Grid size={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Box sx={{
             p: 1.75, height: '100%', borderRadius: 1.5,
             bgcolor: report.news_veto ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)',
@@ -839,8 +839,8 @@ function HistoryRow({ report, onSelect }) {
       <Box
         onClick={() => { setOpen(o => !o); onSelect && onSelect(report); }}
         sx={{
-          display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1,
-          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, px: { xs: 1, sm: 2 }, py: 1,
+          cursor: 'pointer', overflow: 'hidden',
           bgcolor: open ? 'rgba(255,255,255,0.04)' : 'transparent',
           transition: 'background 0.15s',
           '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
@@ -852,7 +852,7 @@ function HistoryRow({ report, onSelect }) {
           {report.symbol}
         </Typography>
 
-        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', minWidth: 140, fontSize: '0.7rem' }}>
+        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', minWidth: 140, fontSize: '0.7rem', display: { xs: 'none', sm: 'block' } }}>
           {new Date(report.generated_at).toLocaleString()}
         </Typography>
 
@@ -883,19 +883,19 @@ function HistoryRow({ report, onSelect }) {
       <Collapse in={open}>
         <Box sx={{ px: 2, py: 1.75, bgcolor: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <Grid container spacing={1.5} sx={{ mb: report.reasoning ? 1.5 : 0 }}>
-            <Grid size={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Typography variant="caption" sx={{ color: '#818cf8', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.6rem' }}>MA Crossover</Typography>
               <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{report.ma_signal_type || '—'}</Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.38)', fontSize: '0.68rem' }}>
                 {[report.ma_trend_strength, report.ma_confidence].filter(Boolean).join(' · ') || '—'}
               </Typography>
             </Grid>
-            <Grid size={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Typography variant="caption" sx={{ color: '#0ea5e9', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.6rem' }}>RSI Divergence</Typography>
               <Typography variant="body2" sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{report.rsi_divergence_type || '—'}</Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.38)', fontSize: '0.68rem' }}>{report.rsi_trend_strength || '—'}</Typography>
             </Grid>
-            <Grid size={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Typography variant="caption" sx={{ color: report.news_veto ? '#ef4444' : '#f59e0b', display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.6rem' }}>
                 News{report.news_veto ? ' · Veto' : ''}
               </Typography>
@@ -978,8 +978,8 @@ function AnalysisLoader({ symbol }) {
   ];
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3.5, py: 3, flex: 1 }}>
-      <Box sx={{ position: 'relative', width: 220, height: 220, flexShrink: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3.5, py: 3, flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', width: { xs: 180, sm: 220 }, height: { xs: 180, sm: 220 }, flexShrink: 0 }}>
         {/* Expanding radar rings */}
         {[0, 1, 2].map(i => (
           <Box key={i} sx={{
@@ -1282,11 +1282,139 @@ export default function Home() {
           <CircularProgress size={56} thickness={3} sx={{ color: '#60a5fa' }} />
         </Box>
       )}
-    <Box sx={{ p: 3, boxSizing: 'border-box' }}>
-      <Grid container spacing={2}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, boxSizing: 'border-box' }}>
+      <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+
+        {/* Analysis — FIRST / full width */}
+        <Grid size={12}>
+          <Paper sx={{
+            p: 0, overflow: 'hidden',
+            border: '1px solid rgba(99,102,241,0.28)',
+            boxShadow: '0 0 32px rgba(99,102,241,0.12), 0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Grid container sx={{ minHeight: { xs: 'auto', sm: 380 } }}>
+
+              {/* Left: request panel */}
+              <Grid size={{ xs: 12, sm: 4 }} sx={{
+                p: { xs: 2.5, sm: 3.5 },
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                background: 'linear-gradient(160deg, rgba(99,102,241,0.16) 0%, rgba(14,165,233,0.08) 100%)',
+                borderRight: { xs: 'none', sm: '1px solid rgba(255,255,255,0.06)' },
+                borderBottom: { xs: '1px solid rgba(255,255,255,0.06)', sm: 'none' },
+              }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <Box>
+                    <Typography variant="overline" sx={{ color: '#818cf8', letterSpacing: '0.12em', fontWeight: 700, fontSize: '0.7rem', display: 'block', mb: 0.75 }}>
+                      AI Analysis
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2, mb: 0.5 }}>
+                      Run Signal<br />Analysis
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.78rem', lineHeight: 1.55 }}>
+                      AI-powered BUY / SELL / HOLD scoring across MA crossover, RSI divergence, and news signals.
+                    </Typography>
+                  </Box>
+
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Symbol</InputLabel>
+                    <Select
+                      value={analysisSymbol}
+                      label="Symbol"
+                      onChange={e => setAnalysisSymbol(e.target.value)}
+                    >
+                      {symbols.map(s => (
+                        <MenuItem key={s.symbol} value={s.symbol}>{s.symbol}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    onClick={handleRequestAnalysis}
+                    disabled={analysisLoading || !analysisSymbol || analysisWaiting}
+                    sx={{
+                      background: (analysisWaiting || analysisLoading)
+                        ? 'rgba(99,102,241,0.18)'
+                        : 'linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%)',
+                      color: '#fff',
+                      fontWeight: 700,
+                      py: 1.5,
+                      borderRadius: 1.5,
+                      fontSize: '1rem',
+                      letterSpacing: '0.06em',
+                      boxShadow: (analysisWaiting || analysisLoading) ? 'none' : '0 4px 28px rgba(99,102,241,0.55)',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #4f46e5 0%, #0284c7 100%)',
+                        boxShadow: '0 6px 36px rgba(99,102,241,0.7)',
+                      },
+                      '&.Mui-disabled': { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)' },
+                    }}
+                  >
+                    {analysisLoading
+                      ? <CircularProgress size={20} color="inherit" />
+                      : analysisWaiting ? 'Analyzing…' : 'Analyze'}
+                  </Button>
+
+                  <Typography sx={{ color: 'rgba(255,255,255,0.22)', fontSize: '0.68rem', lineHeight: 1.6 }}>
+                    ⚠ Work in progress — results may not always be accurate. Do not use as financial advice.
+                  </Typography>
+                </Box>
+
+                {analysisResult && (
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.22)', mt: 2, display: 'block' }}>
+                    {analysisResult.symbol} · {timeAgo(analysisResult.generated_at)}
+                  </Typography>
+                )}
+              </Grid>
+
+              {/* Right: result / empty / waiting */}
+              <Grid size={{ xs: 12, sm: 8 }} sx={{ p: { xs: 2, sm: 3 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                {analysisWaiting ? (
+                  <AnalysisLoader key={analysisSymbol} symbol={analysisSymbol} />
+                ) : analysisResult ? (
+                  <Box key={analysisResult.id} sx={{ animation: `${reportFadeIn} 0.5s ease-out` }}>
+                    <AnalysisReport report={analysisResult} />
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, flex: 1 }}>
+                    {analysisTimedOut ? (
+                      <>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                          Analysis may be ready
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          onClick={handleLoadLatest}
+                          disabled={!analysisSymbol}
+                          sx={{ borderColor: '#60a5fa', color: '#60a5fa', '&:hover': { borderColor: '#93c5fd', color: '#93c5fd' } }}
+                        >
+                          Load Results
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.14)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                          No analysis yet
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.1)', textAlign: 'center', maxWidth: 340, lineHeight: 1.85 }}>
+                          Select a tracked symbol and click Analyze to receive AI‑powered signal scoring,
+                          a BUY / SELL / HOLD decision, and full reasoning from N8N.
+                        </Typography>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Grid>
+
+            </Grid>
+          </Paper>
+        </Grid>
 
         {/* Market Data — 2/3 */}
-        <Grid size={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
               <Typography variant="h6">Market Data</Typography>
@@ -1324,7 +1452,7 @@ export default function Home() {
         </Grid>
 
         {/* Tracked Companies — 1/3 */}
-        <Grid size={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Typography variant="h6">Tracked Companies</Typography>
 
@@ -1356,122 +1484,6 @@ export default function Home() {
               autoHeight
             />
 
-          </Paper>
-        </Grid>
-
-        {/* Analysis — full width */}
-        <Grid size={12}>
-          <Paper sx={{ p: 0, overflow: 'hidden' }}>
-            <Grid container sx={{ minHeight: 280 }}>
-
-              {/* Left: request panel */}
-              <Grid size={3} sx={{
-                p: 3,
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                background: 'linear-gradient(160deg, rgba(99,102,241,0.13) 0%, rgba(14,165,233,0.06) 100%)',
-                borderRight: '1px solid rgba(255,255,255,0.06)',
-              }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box>
-                    <Typography variant="overline" sx={{ color: '#818cf8', letterSpacing: '0.12em', fontWeight: 700, fontSize: '0.65rem', display: 'block', mb: 0.5 }}>
-                      AI Analysis
-                    </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
-                      Run Signal<br />Analysis
-                    </Typography>
-                  </Box>
-
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Symbol</InputLabel>
-                    <Select
-                      value={analysisSymbol}
-                      label="Symbol"
-                      onChange={e => setAnalysisSymbol(e.target.value)}
-                    >
-                      {symbols.map(s => (
-                        <MenuItem key={s.symbol} value={s.symbol}>{s.symbol}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    onClick={handleRequestAnalysis}
-                    disabled={analysisLoading || !analysisSymbol || analysisWaiting}
-                    sx={{
-                      background: (analysisWaiting || analysisLoading)
-                        ? 'rgba(99,102,241,0.18)'
-                        : 'linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%)',
-                      color: '#fff',
-                      fontWeight: 700,
-                      py: 1.25,
-                      borderRadius: 1.5,
-                      fontSize: '0.95rem',
-                      letterSpacing: '0.06em',
-                      boxShadow: (analysisWaiting || analysisLoading) ? 'none' : '0 4px 22px rgba(99,102,241,0.45)',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #4f46e5 0%, #0284c7 100%)',
-                        boxShadow: '0 6px 30px rgba(99,102,241,0.6)',
-                      },
-                      '&.Mui-disabled': { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)' },
-                    }}
-                  >
-                    {analysisLoading
-                      ? <CircularProgress size={20} color="inherit" />
-                      : analysisWaiting ? 'Analyzing…' : 'Analyze'}
-                  </Button>
-                </Box>
-
-                {analysisResult && (
-                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.22)' }}>
-                    {analysisResult.symbol} · {timeAgo(analysisResult.generated_at)}
-                  </Typography>
-                )}
-              </Grid>
-
-              {/* Right: result / empty / waiting */}
-              <Grid size={9} sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                {analysisWaiting && !analysisResult ? (
-                  <AnalysisLoader symbol={analysisSymbol} />
-                ) : analysisResult ? (
-                  <Box key={analysisResult.id} sx={{ animation: `${reportFadeIn} 0.5s ease-out` }}>
-                    <AnalysisReport report={analysisResult} />
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, flex: 1 }}>
-                    {analysisTimedOut ? (
-                      <>
-                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
-                          Analysis may be ready
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          onClick={handleLoadLatest}
-                          disabled={!analysisSymbol}
-                          sx={{ borderColor: '#60a5fa', color: '#60a5fa', '&:hover': { borderColor: '#93c5fd', color: '#93c5fd' } }}
-                        >
-                          Load Results
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.14)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                          No analysis yet
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.1)', textAlign: 'center', maxWidth: 340, lineHeight: 1.85 }}>
-                          Select a tracked symbol and click Analyze to receive AI‑powered signal scoring,
-                          a BUY / SELL / HOLD decision, and full reasoning from N8N.
-                        </Typography>
-                      </>
-                    )}
-                  </Box>
-                )}
-              </Grid>
-
-            </Grid>
           </Paper>
         </Grid>
 
