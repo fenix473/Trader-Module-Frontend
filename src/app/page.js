@@ -1165,20 +1165,27 @@ export default function Home() {
       .catch(() => {});
   }, [analysisSymbol]);
 
-  const startAnalysisPolling = (symbol, requestTime) => {
+  const startAnalysisPolling = (symbol) => {
     if (analysisPollingRef.current) clearInterval(analysisPollingRef.current);
     const check = () => {
-      fetch(`${API}/analysis/latest/${symbol}`)
+      fetch(`${API}/analysis/status/${symbol}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data && data.generated_at >= requestTime) {
-            setAnalysisResult(data);
-            setAnalysisWaiting(false);
+          if (data && !data.pending) {
             clearInterval(analysisPollingRef.current);
             analysisPollingRef.current = null;
-            fetchAnalysisHistory(0);
-            setHistoryPage(0);
-            setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
+            fetch(`${API}/analysis/latest/${symbol}`)
+              .then(res => res.ok ? res.json() : null)
+              .then(result => {
+                if (result) {
+                  setAnalysisResult(result);
+                  setAnalysisWaiting(false);
+                  fetchAnalysisHistory(0);
+                  setHistoryPage(0);
+                  setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
+                }
+              })
+              .catch(() => {});
           }
         })
         .catch(() => {});
@@ -1198,7 +1205,6 @@ export default function Home() {
     if (!analysisSymbol) return;
     setAnalysisLoading(true);
     try {
-      const requestTime = new Date().toISOString();
       const res = await fetch(`${API}/analysis/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1211,7 +1217,7 @@ export default function Home() {
         setSnackbar({ open: true, message: data.message || `Analysis queued for ${analysisSymbol}`, severity: 'success' });
         setAnalysisResult(null);
         setAnalysisWaiting(true);
-        startAnalysisPolling(analysisSymbol, requestTime);
+        startAnalysisPolling(analysisSymbol);
       }
     } catch {
       setSnackbar({ open: true, message: 'Network error', severity: 'error' });
@@ -1401,7 +1407,7 @@ export default function Home() {
 
               {/* Right: result / empty / waiting */}
               <Grid size={9} sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                {analysisWaiting ? (
+                {analysisWaiting && !analysisResult ? (
                   <AnalysisLoader symbol={analysisSymbol} />
                 ) : analysisResult ? (
                   <Box key={analysisResult.id} sx={{ animation: `${reportFadeIn} 0.5s ease-out` }}>
