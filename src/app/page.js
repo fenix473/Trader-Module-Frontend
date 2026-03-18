@@ -723,7 +723,7 @@ function AnalysisReport({ report }) {
   );
 }
 
-function HistoryRow({ report }) {
+function HistoryRow({ report, onSelect }) {
   const [open, setOpen] = useState(false);
   const dec = (report.decision || '').toUpperCase();
   const score = parseFloat(report.score) || 0;
@@ -739,7 +739,7 @@ function HistoryRow({ report }) {
   return (
     <Box sx={{ borderRadius: 1.5, border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden' }}>
       <Box
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { setOpen(o => !o); onSelect && onSelect(report); }}
         sx={{
           display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.25,
           cursor: 'pointer',
@@ -934,6 +934,14 @@ export default function Home() {
 
   useEffect(() => { fetchAnalysisHistory(historyPage, historySymbolFilter); }, [historyPage, historySymbolFilter]);
 
+  useEffect(() => {
+    if (!analysisSymbol || analysisWaiting) return;
+    fetch(`${API}/analysis/latest/${analysisSymbol}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setAnalysisResult(data || null))
+      .catch(() => {});
+  }, [analysisSymbol]);
+
   const startAnalysisPolling = (symbol, requestTime) => {
     if (analysisPollingRef.current) clearInterval(analysisPollingRef.current);
     const check = () => {
@@ -947,6 +955,7 @@ export default function Home() {
             analysisPollingRef.current = null;
             fetchAnalysisHistory(0);
             setHistoryPage(0);
+            setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
           }
         })
         .catch(() => {});
@@ -975,7 +984,8 @@ export default function Home() {
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to queue analysis', severity: 'error' });
       } else {
-        setSnackbar({ open: true, message: `Analysis queued for ${analysisSymbol}`, severity: 'success' });
+        const data = await res.json();
+        setSnackbar({ open: true, message: data.message || `Analysis queued for ${analysisSymbol}`, severity: 'success' });
         setAnalysisResult(null);
         setAnalysisWaiting(true);
         startAnalysisPolling(analysisSymbol, requestTime);
@@ -1168,15 +1178,27 @@ export default function Home() {
 
               {/* Right: result / empty / waiting */}
               <Grid size={9} sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                {analysisWaiting && !analysisResult ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, flex: 1 }}>
-                    <CircularProgress size={38} sx={{ color: '#6366f1' }} />
-                    <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>
-                      N8N is processing your request…
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.22)' }}>
-                      Polling every 4s · up to 2 min
-                    </Typography>
+                {analysisWaiting ? (
+                  <Box sx={{ position: 'relative' }}>
+                    {analysisResult && (
+                      <Box sx={{ opacity: 0.3, pointerEvents: 'none', userSelect: 'none' }}>
+                        <AnalysisReport report={analysisResult} />
+                      </Box>
+                    )}
+                    <Box sx={{
+                      position: analysisResult ? 'absolute' : 'relative',
+                      inset: 0,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                      ...(!analysisResult && { flex: 1 }),
+                    }}>
+                      <CircularProgress size={38} sx={{ color: '#6366f1' }} />
+                      <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                        Generating new analysis for {analysisSymbol}…
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.3)' }}>
+                        Usually takes 1–3 minutes
+                      </Typography>
+                    </Box>
                   </Box>
                 ) : analysisResult ? (
                   <AnalysisReport report={analysisResult} />
@@ -1254,7 +1276,7 @@ export default function Home() {
               </Typography>
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                {analysisHistory.map(r => <HistoryRow key={r.id} report={r} />)}
+                {analysisHistory.map(r => <HistoryRow key={r.id} report={r} onSelect={r => { setAnalysisResult(r); setAnalysisSymbol(r.symbol); }} />)}
               </Box>
             )}
           </Paper>
