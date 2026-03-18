@@ -1413,6 +1413,69 @@ export default function Home() {
           </Paper>
         </Grid>
 
+        {/* Analysis History */}
+        <Grid size={12}>
+          <Paper sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+              <Typography variant="h6">Analysis History</Typography>
+              {historyLoading && <CircularProgress size={14} sx={{ color: '#60a5fa' }} />}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+                <IconButton size="small" onClick={() => setHistoryPage(p => p - 1)} disabled={historyPage === 0 || historyLoading}>
+                  <KeyboardArrowLeftIcon fontSize="small" />
+                </IconButton>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', minWidth: 48, textAlign: 'center' }}>
+                  Page {historyPage + 1}
+                </Typography>
+                <IconButton size="small" onClick={() => setHistoryPage(p => p + 1)} disabled={!historyHasMore || historyLoading}>
+                  <KeyboardArrowRightIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+              <Chip
+                label="All"
+                size="small"
+                onClick={() => { setHistorySymbolFilter(''); setHistoryPage(0); }}
+                sx={{
+                  bgcolor: historySymbolFilter === '' ? '#60a5fa' : 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  fontWeight: historySymbolFilter === '' ? 700 : 400,
+                  cursor: 'pointer',
+                  '&:hover': { bgcolor: historySymbolFilter === '' ? '#3b82f6' : 'rgba(255,255,255,0.18)' },
+                }}
+              />
+              {symbols.map(s => {
+                const active = historySymbolFilter === s.symbol;
+                return (
+                  <Chip
+                    key={s.symbol}
+                    label={s.symbol}
+                    size="small"
+                    onClick={() => { setHistorySymbolFilter(active ? '' : s.symbol); setHistoryPage(0); }}
+                    sx={{
+                      bgcolor: active ? '#818cf8' : 'rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      fontWeight: active ? 700 : 400,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: active ? '#6366f1' : 'rgba(255,255,255,0.18)' },
+                    }}
+                  />
+                );
+              })}
+            </Box>
+
+            {!historyLoading && analysisHistory.length === 0 ? (
+              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.25)', py: 3, textAlign: 'center' }}>
+                No analysis reports yet
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                {analysisHistory.map(r => <HistoryRow key={r.id} report={r} onSelect={r => { setAnalysisResult(r); setAnalysisSymbol(r.symbol); }} />)}
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
         {/* Market Data — 2/3 */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 2 }}>
@@ -1484,69 +1547,6 @@ export default function Home() {
               autoHeight
             />
 
-          </Paper>
-        </Grid>
-
-        {/* Analysis History */}
-        <Grid size={12}>
-          <Paper sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-              <Typography variant="h6">Analysis History</Typography>
-              {historyLoading && <CircularProgress size={14} sx={{ color: '#60a5fa' }} />}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                <IconButton size="small" onClick={() => setHistoryPage(p => p - 1)} disabled={historyPage === 0 || historyLoading}>
-                  <KeyboardArrowLeftIcon fontSize="small" />
-                </IconButton>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', minWidth: 48, textAlign: 'center' }}>
-                  Page {historyPage + 1}
-                </Typography>
-                <IconButton size="small" onClick={() => setHistoryPage(p => p + 1)} disabled={!historyHasMore || historyLoading}>
-                  <KeyboardArrowRightIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
-              <Chip
-                label="All"
-                size="small"
-                onClick={() => { setHistorySymbolFilter(''); setHistoryPage(0); }}
-                sx={{
-                  bgcolor: historySymbolFilter === '' ? '#60a5fa' : 'rgba(255,255,255,0.1)',
-                  color: '#fff',
-                  fontWeight: historySymbolFilter === '' ? 700 : 400,
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: historySymbolFilter === '' ? '#3b82f6' : 'rgba(255,255,255,0.18)' },
-                }}
-              />
-              {symbols.map(s => {
-                const active = historySymbolFilter === s.symbol;
-                return (
-                  <Chip
-                    key={s.symbol}
-                    label={s.symbol}
-                    size="small"
-                    onClick={() => { setHistorySymbolFilter(active ? '' : s.symbol); setHistoryPage(0); }}
-                    sx={{
-                      bgcolor: active ? '#818cf8' : 'rgba(255,255,255,0.1)',
-                      color: '#fff',
-                      fontWeight: active ? 700 : 400,
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: active ? '#6366f1' : 'rgba(255,255,255,0.18)' },
-                    }}
-                  />
-                );
-              })}
-            </Box>
-
-            {!historyLoading && analysisHistory.length === 0 ? (
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.25)', py: 3, textAlign: 'center' }}>
-                No analysis reports yet
-              </Typography>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                {analysisHistory.map(r => <HistoryRow key={r.id} report={r} onSelect={r => { setAnalysisResult(r); setAnalysisSymbol(r.symbol); }} />)}
-              </Box>
-            )}
           </Paper>
         </Grid>
 
