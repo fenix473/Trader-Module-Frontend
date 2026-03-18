@@ -1085,6 +1085,7 @@ export default function Home() {
   const [historyPage, setHistoryPage] = useState(0);
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [historySymbolFilter, setHistorySymbolFilter] = useState('');
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const fetchPrices = () => {
     fetch(`${API}/prices/latest`)
@@ -1155,7 +1156,7 @@ export default function Home() {
       .finally(() => setHistoryLoading(false));
   };
 
-  useEffect(() => { fetchAnalysisHistory(historyPage, historySymbolFilter); }, [historyPage, historySymbolFilter]);
+  useEffect(() => { fetchAnalysisHistory(historyPage, historySymbolFilter); }, [historyPage, historySymbolFilter, historyRefreshKey]);
 
   useEffect(() => {
     if (!analysisSymbol || analysisWaiting) return;
@@ -1165,32 +1166,24 @@ export default function Home() {
       .catch(() => {});
   }, [analysisSymbol]);
 
-  const startAnalysisPolling = (symbol) => {
+  const startAnalysisPolling = (symbol, requestTime) => {
     if (analysisPollingRef.current) clearInterval(analysisPollingRef.current);
     const check = () => {
-      fetch(`${API}/analysis/status/${symbol}`)
+      fetch(`${API}/analysis/latest/${symbol}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data && !data.pending) {
+          if (data && new Date(data.generated_at) > new Date(requestTime)) {
             clearInterval(analysisPollingRef.current);
             analysisPollingRef.current = null;
-            fetch(`${API}/analysis/latest/${symbol}`)
-              .then(res => res.ok ? res.json() : null)
-              .then(result => {
-                if (result) {
-                  setAnalysisResult(result);
-                  setAnalysisWaiting(false);
-                  fetchAnalysisHistory(0);
-                  setHistoryPage(0);
-                  setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
-                }
-              })
-              .catch(() => {});
+            setAnalysisResult(data);
+            setAnalysisWaiting(false);
+            setHistoryPage(0);
+            setHistoryRefreshKey(k => k + 1);
+            setSnackbar({ open: true, message: `Analysis finished for ${symbol}`, severity: 'success' });
           }
         })
         .catch(() => {});
     };
-    check();
     analysisPollingRef.current = setInterval(check, 4000);
     setTimeout(() => {
       if (analysisPollingRef.current) {
@@ -1203,7 +1196,11 @@ export default function Home() {
 
   const handleRequestAnalysis = async () => {
     if (!analysisSymbol) return;
+    const requestTime = new Date().toISOString();
+    setAnalysisResult(null);
+    setAnalysisWaiting(true);
     setAnalysisLoading(true);
+    startAnalysisPolling(analysisSymbol, requestTime);
     try {
       const res = await fetch(`${API}/analysis/request`, {
         method: 'POST',
@@ -1212,15 +1209,16 @@ export default function Home() {
       });
       if (!res.ok) {
         setSnackbar({ open: true, message: 'Failed to queue analysis', severity: 'error' });
+        setAnalysisWaiting(false);
+        if (analysisPollingRef.current) { clearInterval(analysisPollingRef.current); analysisPollingRef.current = null; }
       } else {
         const data = await res.json();
         setSnackbar({ open: true, message: data.message || `Analysis queued for ${analysisSymbol}`, severity: 'success' });
-        setAnalysisResult(null);
-        setAnalysisWaiting(true);
-        startAnalysisPolling(analysisSymbol);
       }
     } catch {
       setSnackbar({ open: true, message: 'Network error', severity: 'error' });
+      setAnalysisWaiting(false);
+      if (analysisPollingRef.current) { clearInterval(analysisPollingRef.current); analysisPollingRef.current = null; }
     } finally {
       setAnalysisLoading(false);
     }
